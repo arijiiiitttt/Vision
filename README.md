@@ -1,6 +1,6 @@
 <p align="center">
   <a>
-    <img alt="Pi logo" src="assets/" width="132">
+    <img alt="Vision logo" src="assets/" width="132">
   </a>
 </p>
 
@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <b>Pi</b> 
+  <b>Vision</b> 
 </p>
 
 
-> **New to Pi?** Don't worry this guide explains everything step by step, with no skipped steps.
+> **New to Vision?** Don't worry this guide explains everything step by step, with no skipped steps.
