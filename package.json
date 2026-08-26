@@ -1,0 +1,16 @@
+{
+  "name": "vision",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:dashboard": "npm run dev --prefix dashboard",
+    "build:server": "npm run build --prefix server",
+    "build:dashboard": "npm run build --prefix dashboard",
+    "build": "npm run build --prefix server && npm run build --prefix dashboard",
+    "setup": "node scripts/setup.js",
+    "seed": "node scripts/seed.js",
+    "migrate": "node scripts/migrate.js",
+    "test": "vitest run"
+  }
+}
