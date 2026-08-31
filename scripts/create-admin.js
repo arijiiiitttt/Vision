@@ -1,29 +1,4 @@
 #!/usr/bin/env node
-/**
- * Generates a ready-to-paste SQL statement for creating (or resetting) an
- * ADMIN user directly in Neon — no app deployment, no seed script, no
- * plaintext password ever touching the database or a repo.
- *
- * Why this exists:
- *   The 6 admin accounts aren't self-registered (the public /auth/register
- *   route always creates role=USER — see server/src/auth/AuthService.ts).
- *   Admins are provisioned by whoever holds DB access, straight into Neon's
- *   SQL editor. This script does the one part that can't safely happen in
- *   the SQL editor itself: bcrypt-hashing the password with the exact same
- *   algorithm + cost factor the app's login route verifies against
- *   (server/src/auth/PasswordService.ts — bcrypt, 12 rounds).
- *
- * Usage:
- *   node scripts/create-admin.js
- *     -> interactive prompts, password input is hidden while typing.
- *
- *   node scripts/create-admin.js --name "Priya Sharma" --email priya@company.com
- *     -> prompts only for the password (still hidden).
- *
- * The script only ever prints SQL to your terminal. It does not connect to
- * any database and does not write the password or hash to disk or history.
- * Copy the printed statement into Neon's SQL Editor and run it there.
- */
 
 const readline = require("node:readline");
 const crypto = require("node:crypto");
@@ -47,8 +22,6 @@ function ask(question) {
   return new Promise((resolve) => rl.question(question, (answer) => { rl.close(); resolve(answer.trim()); }));
 }
 
-// Hides input as the user types (no echoed asterisks, just nothing — simplest
-// approach that avoids extra deps and still keeps the password off the visible screen).
 function askHidden(question) {
   return new Promise((resolve) => {
     process.stdout.write(question);
