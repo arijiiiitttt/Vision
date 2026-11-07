@@ -1,9 +1,7 @@
 # Vision backend — builds and runs the TypeScript API/brain server.
-# Build context is ./server (see docker-compose.yml: `build: ./server`).
-
 FROM node:20-alpine AS build
 
-# Needed to compile native modules like canvas
+# Build tools for native modules (canvas)
 RUN apk add --no-cache \
     python3 \
     make \
@@ -22,11 +20,14 @@ RUN npm install
 COPY . .
 RUN npm run build:sim && npm run build
 
+# Keep only production dependencies
+RUN npm prune --omit=dev
+
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Runtime libraries for canvas
+# Runtime libraries needed by canvas
 RUN apk add --no-cache \
     pixman \
     cairo \
@@ -35,9 +36,9 @@ RUN apk add --no-cache \
     giflib \
     librsvg
 
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
-
+# Copy built app + already-compiled node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/simulation ./simulation
 
