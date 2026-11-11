@@ -6,6 +6,9 @@ import { requireRole } from "../middleware/authorization";
 import { env } from "../config/env";
 import { simulatedRobot } from "../robot/SimulatedRobot";
 import { getRobotLinkStatus } from "../robot/linkStatus";
+import { sharedMind, mindEngine } from "../mind";
+import { getLiveFeed } from "../mind/liveFeed";
+import { isMindEngine } from "../mind/SharedMind";
 import { robotModeService, isRobotMode } from "../robot/RobotModeService";
 import { systemHealthService } from "../system/SystemHealthService";
 
@@ -58,6 +61,35 @@ systemRouter.get("/system/whoami", requireAuth, (req, res) => {
 
 // Switch the robot between the virtual robot and the real one. Dashboard-controlled; admin only.
 // Going to "hardware" is refused unless the caller says confirmHardware: true (the dashboard asks first).
+// The robot's brain: which one is in charge and what it is thinking. "shared" = the simulator's brain running on the server.
+systemRouter.get("/system/mind", requireAuth, (_req, res) => {
+  const mind = sharedMind.snapshot();
+  res.json({ engine: mindEngine.get(), running: sharedMind.running, mind: mind ? { mood: mind.mood, thought: mind.thought, lastAction: mind.lastAction, busy: mind.busy, pose: mind.pose } : null });
+});
+// Live view of the real robot: its brain (mood, hormones, drives, thoughts, events) plus what its camera and sensors report right now.
+systemRouter.get("/system/mind/live", requireAuth, (_req, res) => {
+  const feed = getLiveFeed();
+  res.json({
+    engine: mindEngine.get(), running: sharedMind.running, mind: sharedMind.live(),
+    camera: feed ? {
+      robotId: feed.robotId, at: feed.at, ageMs: Date.now() - feed.at, hasFrame: !!feed.jpeg, width: feed.frameWidth, height: feed.frameHeight,
+      personDetected: feed.personDetected, personName: feed.personName, objects: feed.objects, motion: feed.motion, brightness: feed.brightness, ultrasonicMm: feed.ultrasonicMm,
+    } : null,
+  });
+});
+systemRouter.get("/system/mind/frame", requireAuth, (_req, res) => {
+  const feed = getLiveFeed();
+  if (!feed?.jpeg) return res.status(404).json({ error: "No picture from the robot yet" });
+  res.set({ "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Frame-At": String(feed.at) }).send(feed.jpeg);
+});
+systemRouter.post("/system/mind-engine", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  const engine = req.body?.engine;
+  if (!isMindEngine(engine)) return res.status(400).json({ error: 'engine must be "shared" or "classic"' });
+  mindEngine.set(engine);
+  if (engine === "classic") await sharedMind.stop();   // hand the robot back to the classic brain right away
+  res.json({ engine: mindEngine.get(), running: sharedMind.running });
+});
+
 systemRouter.post("/system/robot-mode", requireAuth, requireRole("ADMIN"), (req, res) => {
   const mode = req.body?.mode;
   if (!isRobotMode(mode)) return res.status(400).json({ error: 'mode must be "simulation" or "hardware"' });

@@ -155,6 +155,8 @@ describe("simulator static hosting", () => {
     expect(csp).toContain("frame-ancestors 'self' http://localhost:5173");
     expect(csp).toContain("default-src 'self'");
     expect(csp).not.toContain("script-src *");
+    expect(csp).toContain("connect-src");
+    expect(csp).toContain("https://overpass-api.de"); // the Real world map ground fetches OpenStreetMap data
     expect(res.headers.get("x-frame-options")).toBeNull();
     expect(simulationCsp("https://dash.example")).toContain("frame-ancestors 'self' https://dash.example");
   });

@@ -43,6 +43,7 @@ const MAIN_LINKS = [
   { to: "", label: "Dashboard", icon: HiOutlineViewGrid, group: "Main" },
   { to: "monitoring", label: "Monitoring", icon: HiOutlineChartBar, group: "Main" },
   { to: "robot", label: "Robot", icon: HiOutlineChip, group: "Main" },
+  { to: "live", label: "Live Robot", icon: HiOutlineLightningBolt, group: "Main" },
   { to: "camera", label: "Live Camera", icon: HiOutlineVideoCamera, group: "Main" },
   { to: "tracking", label: "Person Tracking", icon: HiOutlineUserGroup, group: "Main" },
   { to: "audio", label: "Audio", icon: HiOutlineSpeakerphone, group: "Sensing" },

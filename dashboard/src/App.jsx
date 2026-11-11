@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Monitoring from "./pages/Monitoring.jsx";
 import Robot from "./pages/Robot.jsx";
 import LiveCamera from "./pages/LiveCamera.jsx";
+import LiveRobot from "./pages/LiveRobot.jsx";
 import PersonTracking from "./pages/PersonTracking.jsx";
 import Audio from "./pages/Audio.jsx";
 import Ultrasonic from "./pages/Ultrasonic.jsx";
@@ -80,6 +81,7 @@ export default function App() {
                     <Route index element={<Dashboard />} />
                     <Route path="monitoring" element={<Monitoring />} />
                     <Route path="robot" element={<Robot />} />
+                    <Route path="live" element={<LiveRobot />} />
                     <Route path="camera" element={<LiveCamera />} />
                     <Route path="tracking" element={<PersonTracking />} />
                     <Route path="audio" element={<Audio />} />

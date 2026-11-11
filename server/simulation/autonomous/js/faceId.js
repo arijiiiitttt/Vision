@@ -7,7 +7,7 @@
 import { createBackend, availableBackends } from "./faceBackend.js";
 import "./faceApiBackend.js"; // registers "faceapi"
 import "./humanBackend.js"; // registers "human" (blazeface + faceres)
-import { IdentityIndex, fingerprint } from "./faceMatch.js";
+import { IdentityIndex, cosineDist, fingerprint } from "./faceMatch.js";
 const STORE_KEY = "vision.faceEmbeddings.v1";
 const BACKEND_KEY = "vision.faceBackend.v1";
 export class FaceId {
@@ -115,6 +115,38 @@ export class FaceId {
         this.lastDebug = hits;
         this.lastDetectMs = (typeof performance !== "undefined" ? performance.now() : 0) - t0;
         return hits;
+    }
+    /**
+     * Take in the people the server knows (same face model family only). New names are added; known names gain any
+     * fingerprints they did not have yet. Returns how many things changed. This is how the simulator and the real robot
+     * end up recognising the same people.
+     */
+    mergeShared(shared) {
+        if (this.impl.id !== "faceapi")
+            return 0;
+        let changed = 0;
+        const now = this.now();
+        for (const p of shared) {
+            const ds = p.descriptors.filter((d) => d.length === 128);
+            if (!p.name || !ds.length)
+                continue;
+            let local = this.people.find((x) => x.name.toLowerCase() === p.name.toLowerCase());
+            if (!local) {
+                this.people.push({ name: p.name, descriptors: ds.slice(0, 12), hits: 0, updatedAt: now });
+                changed++;
+                continue;
+            }
+            for (const d of ds)
+                if (local.descriptors.length < 24 && !local.descriptors.some((x) => cosineDist(x, d) < 1e-4)) {
+                    local.descriptors.push(d);
+                    changed++;
+                }
+            if (changed)
+                this.index.forget(local.name);
+        }
+        if (changed)
+            this.saveStore();
+        return changed;
     }
     /** Enrol / update a person from the current frame (largest face). Call several times from different angles. */
     async enroll(input, name) {

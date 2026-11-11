@@ -8,7 +8,8 @@ import { Senses } from "./senses.js";
 import { voiceProfile, runScenario, SCENARIOS, PERSONALITIES, daylight, aiVerdict } from "./life.js";
 import { WeatherFx, type SkyKind } from "./weatherfx.js";
 import { initLab } from "./lab.js";
-import { askCortex, fetchHealth, loadMindState, saveMindState, deleteMindState } from "./cortexClient.js";
+import { World } from "./world.js";
+import { askCortex, fetchHealth, loadMindState, saveMindState, deleteMindState, sendPeople, fetchSharedPeople } from "./cortexClient.js";
 import { Steering, resolveOverlap, type Obstacle } from "./steering.js";
 import { SightTracker, worldDetections, arenaLabel, type Sight } from "./vision.js";
 import { Limbic } from "./limbic.js";
@@ -569,6 +570,67 @@ function drawFaceDebug(ctx: CanvasRenderingContext2D, W: number, H: number) {
     if (!shell) { tile.style.display = "none"; continue; } // opened on its own, not inside the shell
     el.addEventListener("change", () => { if (el.checked) shell.open(view); });
   }
+}
+// People flow: what you teach him here is sent to the dashboard People list (and so to the real robot, which matches faces against that list).
+{
+  const KEY = "vision.sync.sent", auto = $<HTMLInputElement>("tglAutoSend"), note = $("sendNote");
+  const sent = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } };
+  const saveSent = (m: Record<string, number>) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* private mode */ } };
+  try { auto.checked = localStorage.getItem("vision.sync.auto") !== "0"; } catch { /* default on */ }
+  note.textContent = auto.checked ? "auto" : "off";
+  let busy = false;
+  const send = async (manual: boolean) => {
+    if (busy) return; const done = sent();
+    const todo = senses.book.profiles.filter((p) => !p.visitor && !/^visitor\s*\d*$/i.test(p.name) && p.photos.some((ph) => ph.at > (done[p.id] ?? 0)));
+    if (!todo.length) { if (manual) toast("Nothing new to send. Teach him a name first (Teach my face).", "info"); return; }
+    busy = true;
+    const res = await sendPeople(todo.map((p) => ({ name: p.name, photos: p.photos.filter((ph) => ph.at > (done[p.id] ?? 0)).map((ph) => ph.jpg) })));
+    busy = false;
+    if (!res.ok) {
+      note.textContent = res.status === 401 || res.status === 403 ? "sign in as admin" : "server unreachable";
+      if (manual) toast(res.status === 401 || res.status === 403 ? "Only a signed-in admin can send people. Sign in on the dashboard first." : "Could not reach the server. Nothing was sent.", "warn");
+      return;
+    }
+    let enrolled = 0, problems: string[] = [];
+    for (const r of res.results) {
+      const p = todo.find((x) => x.name === r.name);
+      if (p && r.status !== "skipped" && (r.enrolled ?? 0) > 0) done[p.id] = Math.max(...p.photos.map((ph) => ph.at));
+      enrolled += r.enrolled ?? 0;
+      if (r.status === "skipped") problems.push(`${r.name}: ${r.reason}`); else if (r.failed?.length) problems.push(`${r.name}: ${r.failed.length} photo(s) not used (${[...new Set(r.failed)].join("; ")})`);
+    }
+    saveSent(done); note.textContent = auto.checked ? "auto" : "off";
+    if (enrolled || manual) toast(enrolled ? `Sent to the dashboard: ${enrolled} face photo(s). The real robot can now recognise them.${problems.length ? " " + problems.join(" | ") : ""}` : `Nothing was accepted. ${problems.join(" | ")}`, enrolled ? "good" : "warn");
+  };
+  auto.addEventListener("change", () => { try { localStorage.setItem("vision.sync.auto", auto.checked ? "1" : "0"); } catch { /* ignore */ } note.textContent = auto.checked ? "auto" : "off"; });
+  setInterval(() => { if (auto.checked && note.textContent !== "sign in as admin") void send(false); }, 10000);
+}
+// People flow, the other way: everyone the server knows (taught on the dashboard, or met by the real robot) is learned here too,
+// so the simulator recognises the same people. Same face model family only; quietly does nothing if not signed in as admin.
+{
+  const pull = async () => {
+    const d = await fetchSharedPeople(); if (!d || d.backend !== "faceapi") return;
+    const n = senses.faces.mergeShared(d.people);
+    if (n) { for (const p of d.people) brain.learnPersonName(p.name); toast(`Learned ${n} face fingerprint(s) from the server's people list`, "info"); }
+  };
+  setTimeout(() => void pull(), 8000); setInterval(() => void pull(), 60000);
+}
+// Real world ground (OpenStreetMap): replaces the black floor with streets, buildings and parks; falls back to the floor if the map can't load.
+{
+  const tgl = $<HTMLInputElement>("tglWorld"), note = $("worldNote");
+  const saved = (() => { try { return localStorage.getItem("vision.world.on"); } catch { return null; } })();
+  tgl.checked = saved !== "0";
+  const apply = async () => {
+    try { localStorage.setItem("vision.world.on", tgl.checked ? "1" : "0"); } catch { /* private mode */ }
+    if (!tgl.checked) { World.disable(); Rig.setMaxZoom?.(7); note.textContent = "off"; return; }
+    note.textContent = "loading";
+    const r = await World.enable(Rig.getSkyColor?.());
+    if (r.ok) { Rig.setMaxZoom?.(25); note.textContent = World.place.name.split(",")[0]; World.shade(Rig.getSkyColor());
+      if (!(r as any).fromCache) toast(`Real world loaded: ${World.place.name}`, "good"); }
+    else { tgl.checked = false; note.textContent = "offline"; toast(`Real world unavailable (${r.note}); using the plain floor`, "warn"); }
+  };
+  tgl.addEventListener("change", apply);
+  Rig.ready.then(() => { World.init((window as any).THREE, Rig.getScene(), Rig.setGround); if (tgl.checked) void apply(); }).catch(() => {});
+  setInterval(() => { if (World.state === "on") World.shade(Rig.getSkyColor()); }, 1000);
 }
 $<HTMLInputElement>("tglCamDbg").addEventListener("change", (e) => { camDebug = (e.target as HTMLInputElement).checked; $("camDbgNote").textContent = camDebug ? "on" : "off"; });
 {

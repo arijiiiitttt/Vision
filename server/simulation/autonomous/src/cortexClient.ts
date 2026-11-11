@@ -37,3 +37,23 @@ export async function saveMindState(state: unknown, keepalive = false): Promise<
 export async function deleteMindState(): Promise<void> {
   try { await fetch("/api/simulation/mind-state", { method: "DELETE", credentials: "same-origin" }); } catch { /* ignore */ }
 }
+
+export interface PeopleSyncResult { name: string; status: string; enrolled?: number; failed?: string[]; reason?: string }
+/** Send taught people (name + face photos) to the server's People list, which the real robot also uses. Needs an admin session. */
+export async function sendPeople(people: { name: string; photos: string[] }[]): Promise<{ ok: boolean; status: number; results: PeopleSyncResult[] }> {
+  try {
+    const r = await fetch("/api/people/import-from-simulator", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ people }) });
+    const d = r.ok ? await r.json() : null;
+    return { ok: r.ok, status: r.status, results: d?.results ?? [] };
+  } catch { return { ok: false, status: 0, results: [] }; }
+}
+
+/** The people the server knows, as face fingerprints (same people the real robot recognises). Needs an admin session. */
+export async function fetchSharedPeople(): Promise<{ backend: string; people: { name: string; descriptors: number[][] }[] } | null> {
+  try {
+    const r = await fetch("/api/people/face-data", { credentials: "same-origin" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return { backend: String(d.backend ?? ""), people: (d.people ?? []).map((p: any) => ({ name: String(p.name), descriptors: p.faces ?? [] })) };
+  } catch { return null; }
+}

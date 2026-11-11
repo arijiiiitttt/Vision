@@ -1,10 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="light" style="color-scheme: light">
   <head>
     <meta charset="UTF-8" />
+    <!-- The UI is designed for light mode. Tell the browser so it never auto-darkens the page or its form controls when the computer is in dark mode. -->
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <meta name="theme-color" content="#f6f7f9" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/images/Vision.png" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script>
+      // Light by default, whatever the computer is set to. Dark only if the person chose it with the theme switch (saved in this browser).
+      try {
+        if (localStorage.getItem("vision-theme-choice") === "dark") {
+          document.documentElement.classList.remove("light");
+          document.documentElement.style.colorScheme = "dark";
+        }
+      } catch (e) {}
+    </script>
     <title>Vision Dashboard</title>
   </head>
   <body class="bg-vision-bg text-slate-100">

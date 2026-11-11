@@ -3,7 +3,7 @@ export const Rig = (function () {
   const loadingEl = document.getElementById("modelLoading");
 
   let scene, camera, renderer, root, model;
-  let groundGrid = null, groundFloor = null, groundCell = 1;
+  let maxZoom = 7, groundGrid = null, groundFloor = null, groundCell = 1;
   let radius = 1;
   let modelHeight = 1;
   const view = { theta: 0, phi: Math.PI * 0.31, dist: 3 };
@@ -86,7 +86,7 @@ export const Rig = (function () {
     window.addEventListener("mouseup", up);
     mount.addEventListener("wheel", (e) => {
       e.preventDefault();
-      view.dist = Math.max(radius * 0.55, Math.min(radius * 7, view.dist * (1 + e.deltaY * 0.001)));
+      view.dist = Math.max(radius * 0.55, Math.min(radius * maxZoom, view.dist * (1 + e.deltaY * 0.001)));
       updateCamera();
     }, { passive: false });
     mount.addEventListener("touchstart", (e) => { if (e.touches.length === 1) down(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
@@ -147,7 +147,7 @@ export const Rig = (function () {
   const skyCol = new THREE.Color(0x1b2236);
   const horizonV = new THREE.Vector3();
   let lastHorizon = -1;
-  function setSky(cssColor) { skyCol.set(cssColor); }
+  function setSky(cssColor) { skyCol.set(cssColor); if (scene && scene.fog) scene.fog.color.copy(skyCol); }
   function updateHorizon() {
     const dx = target.x - camera.position.x, dz = target.z - camera.position.z, len = Math.hypot(dx, dz) || 1;
     horizonV.set(camera.position.x + (dx / len) * 1000, camera.position.y, camera.position.z + (dz / len) * 1000).project(camera);
@@ -392,6 +392,11 @@ export const Rig = (function () {
     addProp,
     addModel,
     setSky,
+    setMaxZoom: (n) => { maxZoom = Math.max(4, Number(n) || 7); },
+    getScene: () => scene,
+    getSkyColor: () => skyCol.getHex(),
+    /** Show or hide the black floor and its grid (the real-world map replaces them). */
+    setGround: (v) => { if (groundFloor) groundFloor.visible = !!v; if (groundGrid) groundGrid.visible = !!v; },
     addShape,
     removeProp,
     addDisc,

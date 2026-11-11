@@ -5,6 +5,7 @@ import { env } from "../config/env";
 import { logger } from "../logging/Logger";
 import { pendingCommandQueue } from "../commands/PendingCommandQueue";
 import { takePendingSpeech, speechEvents } from "../audio/PendingSpeechCache";
+import { brainOrchestrator } from "../brain/BrainOrchestrator";
 import { cameraService } from "../camera/CameraService";
 import { getAttentionControllerFor } from "../attention/AttentionController";
 import { ingestHeartbeat } from "./heartbeat";
@@ -338,6 +339,10 @@ export class SimulatedRobot extends EventEmitter {
           const file = this.frames[this.frameIndex++ % this.frames.length];
           await cameraService.capture(readFileSync(file), this.robotId);
           this.state.framesSent++;
+        } else {
+          // No pictures to send: the virtual robot still lives. The brain gets a "nothing new in view" tick, so its gestures, idle
+          // fidgets, wandering, greeting timers and the shared brain keep going exactly as they do on the real robot between frames.
+          await brainOrchestrator.observeAndReact(Buffer.alloc(0), this.robotId);
         }
       } catch (err) {
         logger.warn("Simulated camera frame failed", { error: (err as Error).message });

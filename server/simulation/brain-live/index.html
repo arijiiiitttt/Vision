@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vision · live brain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css"><link rel="stylesheet" href="./brain-live.css">
+</head><body class="embedded">
+<script src="./auth.js"></script>
+<section class="card brain big embedded" id="brSec">
+  <div class="bl-grid">
+    <div class="bl-main">
+      <div class="brain-read bl-hero">
+        <div class="bl-hero-top">
+          <span class="chip" id="brState">awake</span>
+          <button type="button" class="link-btn" id="brainExpand" hidden>Enlarge</button>
+        </div>
+        <div class="emo-row"><i class="emo-dot"></i><span id="brEmo">neutral</span><em id="brInt">0%</em></div>
+        <i class="meter"><b id="brMeter"></b></i>
+        <p id="brWhy">at rest, waiting for something to happen</p>
+      </div>
+      <div class="brain-view"><canvas id="brainCanvas"></canvas></div>
+    </div>
+    <aside class="bl-side">
+      <div class="bl-card">
+        <div class="bl-title">Hormones &amp; neuromodulators</div>
+        <div class="chem-grid" id="chemGrid"></div>
+      </div>
+      <div class="bl-card bl-two">
+        <div><div class="bl-title">Mood & instinct</div><div class="brain-instinct" id="brInstinct">instinct <b>observe</b></div></div>
+        <div><div class="bl-title">Brain divisions</div><div class="brain-divisions" id="brDivisions">cerebrum · cerebellum · brainstem</div></div>
+      </div>
+      <div class="bl-card arch-panel" id="archPanel">
+        <div class="bl-title">Predictive loop</div>
+        <div class="arch-flow" id="archFlow">
+          <span class="arch-node" data-n="percept">Percept</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="model">Model</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="predict">Predict</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="pe">PE</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="need">Need</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="act">Act</span><span class="arch-arrow">→</span>
+          <span class="arch-node" data-n="decide">Decide</span>
+        </div>
+        <div class="arch-metrics">
+          <span>uncertainty <b id="archUnc">—</b></span>
+          <span>prediction error <b id="archPE">—</b></span>
+          <span>epistemic value <b id="archEpi">—</b></span>
+        </div>
+      </div>
+      <div class="bl-card">
+        <div class="bl-title">Brain regions</div>
+        <ul class="brain-legend" id="brainLegend"></ul>
+      </div>
+    </aside>
+  </div>
+</section>
+<div id="blStatus" class="bl-status">Waiting for the robot's brain…</div>
+<script type="module" src="./main.js"></script>
+</body></html>

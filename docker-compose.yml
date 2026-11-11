@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vision
+      POSTGRES_PASSWORD: vision
+      POSTGRES_DB: vision
+    ports: ["5432:5432"]
+    volumes: ["vision-db-data:/var/lib/postgresql/data"]
+
+  server:
+    build: ./server
+    ports: ["4000:4000"]
+    environment:
+      DATABASE_URL: postgresql://vision:vision@postgres:5432/vision
+      PORT: 4000
+      NODE_ENV: development
+      FRONTEND_URL: http://localhost:5173
+      ROBOT_MODE: "simulation"
+      JWT_SECRET: dev-secret
+      ROBOT_AUTH_SECRET: dev-robot-secret
+    depends_on: [postgres]
+
+volumes:
+  vision-db-data:

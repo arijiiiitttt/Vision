@@ -138,3 +138,10 @@ body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: rgb(
 .tb-float{animation:tbFloat 2s ease-in-out infinite}
 .tb-shake{animation:tbShake 3s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.tb-wiggle,.tb-pulse,.tb-spin,.tb-spin-fast,.tb-blink,.tb-float,.tb-shake{animation:none}}
+
+/* Home navbar: buttons pop when they swap; toast bounces in at the bottom right */
+@keyframes vnPop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes vnToast{0%{opacity:0;transform:translateY(30px) scale(.9)}60%{opacity:1;transform:translateY(-6px) scale(1.03)}100%{transform:none}}
+.vn-pop{animation:vnPop .35s ease-out}
+.vn-toast{animation:vnToast .45s ease-out}
+@media (prefers-reduced-motion:reduce){.vn-pop,.vn-toast{animation:none}}

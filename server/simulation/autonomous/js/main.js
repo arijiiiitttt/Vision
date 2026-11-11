@@ -8,7 +8,8 @@ import { Senses } from "./senses.js";
 import { voiceProfile, runScenario, SCENARIOS, PERSONALITIES, daylight, aiVerdict } from "./life.js";
 import { WeatherFx } from "./weatherfx.js";
 import { initLab } from "./lab.js";
-import { askCortex, fetchHealth, loadMindState, saveMindState, deleteMindState } from "./cortexClient.js";
+import { World } from "./world.js";
+import { askCortex, fetchHealth, loadMindState, saveMindState, deleteMindState, sendPeople, fetchSharedPeople } from "./cortexClient.js";
 import { Steering, resolveOverlap } from "./steering.js";
 import { SightTracker, worldDetections, arenaLabel } from "./vision.js";
 import { Limbic } from "./limbic.js";
@@ -27,9 +28,17 @@ if (!window.THREE) {
 const { Rig } = await import("./rig.js");
 const { createSpeechController } = await import("./speech.js");
 /** Embedded in the simulator shell: the mind controls (mode, face model, LLM badge, help, E-STOP) sit in the shell's top bar, so this page's own header is not shown. */
-const shellDoc = (() => { try { return window.parent !== window && window.parent.document.getElementById("estop") ? window.parent.document : null; } catch { return null; } })();
+const shellDoc = (() => { try {
+    return window.parent !== window && window.parent.document.getElementById("estop") ? window.parent.document : null;
+}
+catch {
+    return null;
+} })();
 const $ = (id) => (document.getElementById(id) ?? shellDoc?.getElementById(id));
-if (shellDoc) { document.querySelector("header.top")?.remove(); requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))); } // belt and braces: make the 3D view re-measure
+if (shellDoc) {
+    document.querySelector("header.top")?.remove();
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+} // belt and braces: make the 3D view re-measure
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 // If his eyes look the wrong way for you, set GAZE_FLIP to true.
 const GAZE_FLIP = false;
@@ -591,14 +600,21 @@ function estop() {
     setModeUI("off");
     $("bodyState").textContent = "E-STOP";
     $("estop").classList.add("armed");
-    $("estop").textContent = "RESUME"; $("estop").setAttribute("aria-label", "Resume"); $("estop").title = "Resume: let him move again";
+    $("estop").textContent = "RESUME";
+    $("estop").setAttribute("aria-label", "Resume");
+    $("estop").title = "Resume: let him move again";
     addLog("system", "EMERGENCY STOP: all motion halted, mind switched off");
 }
 function resume() { stopped = false; Rig.setStopped(false); $("estop").classList.remove("armed"); $("estop").textContent = "E-STOP"; $("estop").setAttribute("aria-label", "Emergency stop"); $("estop").title = "Emergency stop (Esc)"; $("bodyState").textContent = "Idle"; addLog("system", "resumed"); }
 $("estop").addEventListener("click", () => ($("estop").classList.contains("armed") ? resume() : estop()));
 window.addEventListener("keydown", (e) => { if (e.key === "Escape")
     estop(); });
-if (shellDoc) { const ac = new AbortController(); addEventListener("pagehide", () => ac.abort()); shellDoc.addEventListener("keydown", (e) => { if (e.key === "Escape" && shellDoc.querySelector(".bar.mind-on")) estop(); }, { signal: ac.signal }); } // Esc while focus is on the shell's top bar; removed when this page unloads
+if (shellDoc) {
+    const ac = new AbortController();
+    addEventListener("pagehide", () => ac.abort());
+    shellDoc.addEventListener("keydown", (e) => { if (e.key === "Escape" && shellDoc.querySelector(".bar.mind-on"))
+        estop(); }, { signal: ac.signal });
+} // Esc while focus is on the shell's top bar; removed when this page unloads
 // Reflexes, 20 Hz, never waiting for any decision maker: arena wall, obstacle steering, no-clipping.
 setInterval(() => {
     const p = Rig.getPosition();
@@ -855,23 +871,149 @@ function drawFaceDebug(ctx, W, H) {
             shell.open(view); });
     }
 }
+// People flow: what you teach him here is sent to the dashboard People list (and so to the real robot, which matches faces against that list).
+{
+    const KEY = "vision.sync.sent", auto = $("tglAutoSend"), note = $("sendNote");
+    const sent = () => { try {
+        return JSON.parse(localStorage.getItem(KEY) ?? "{}");
+    }
+    catch {
+        return {};
+    } };
+    const saveSent = (m) => { try {
+        localStorage.setItem(KEY, JSON.stringify(m));
+    }
+    catch { /* private mode */ } };
+    try {
+        auto.checked = localStorage.getItem("vision.sync.auto") !== "0";
+    }
+    catch { /* default on */ }
+    note.textContent = auto.checked ? "auto" : "off";
+    let busy = false;
+    const send = async (manual) => {
+        if (busy)
+            return;
+        const done = sent();
+        const todo = senses.book.profiles.filter((p) => !p.visitor && !/^visitor\s*\d*$/i.test(p.name) && p.photos.some((ph) => ph.at > (done[p.id] ?? 0)));
+        if (!todo.length) {
+            if (manual)
+                toast("Nothing new to send. Teach him a name first (Teach my face).", "info");
+            return;
+        }
+        busy = true;
+        const res = await sendPeople(todo.map((p) => ({ name: p.name, photos: p.photos.filter((ph) => ph.at > (done[p.id] ?? 0)).map((ph) => ph.jpg) })));
+        busy = false;
+        if (!res.ok) {
+            note.textContent = res.status === 401 || res.status === 403 ? "sign in as admin" : "server unreachable";
+            if (manual)
+                toast(res.status === 401 || res.status === 403 ? "Only a signed-in admin can send people. Sign in on the dashboard first." : "Could not reach the server. Nothing was sent.", "warn");
+            return;
+        }
+        let enrolled = 0, problems = [];
+        for (const r of res.results) {
+            const p = todo.find((x) => x.name === r.name);
+            if (p && r.status !== "skipped" && (r.enrolled ?? 0) > 0)
+                done[p.id] = Math.max(...p.photos.map((ph) => ph.at));
+            enrolled += r.enrolled ?? 0;
+            if (r.status === "skipped")
+                problems.push(`${r.name}: ${r.reason}`);
+            else if (r.failed?.length)
+                problems.push(`${r.name}: ${r.failed.length} photo(s) not used (${[...new Set(r.failed)].join("; ")})`);
+        }
+        saveSent(done);
+        note.textContent = auto.checked ? "auto" : "off";
+        if (enrolled || manual)
+            toast(enrolled ? `Sent to the dashboard: ${enrolled} face photo(s). The real robot can now recognise them.${problems.length ? " " + problems.join(" | ") : ""}` : `Nothing was accepted. ${problems.join(" | ")}`, enrolled ? "good" : "warn");
+    };
+    auto.addEventListener("change", () => { try {
+        localStorage.setItem("vision.sync.auto", auto.checked ? "1" : "0");
+    }
+    catch { /* ignore */ } note.textContent = auto.checked ? "auto" : "off"; });
+    setInterval(() => { if (auto.checked && note.textContent !== "sign in as admin")
+        void send(false); }, 10000);
+}
+// People flow, the other way: everyone the server knows (taught on the dashboard, or met by the real robot) is learned here too,
+// so the simulator recognises the same people. Same face model family only; quietly does nothing if not signed in as admin.
+{
+    const pull = async () => {
+        const d = await fetchSharedPeople();
+        if (!d || d.backend !== "faceapi")
+            return;
+        const n = senses.faces.mergeShared(d.people);
+        if (n) {
+            for (const p of d.people)
+                brain.learnPersonName(p.name);
+            toast(`Learned ${n} face fingerprint(s) from the server's people list`, "info");
+        }
+    };
+    setTimeout(() => void pull(), 8000);
+    setInterval(() => void pull(), 60000);
+}
+// Real world ground (OpenStreetMap): replaces the black floor with streets, buildings and parks; falls back to the floor if the map can't load.
+{
+    const tgl = $("tglWorld"), note = $("worldNote");
+    const saved = (() => { try {
+        return localStorage.getItem("vision.world.on");
+    }
+    catch {
+        return null;
+    } })();
+    tgl.checked = saved !== "0";
+    const apply = async () => {
+        try {
+            localStorage.setItem("vision.world.on", tgl.checked ? "1" : "0");
+        }
+        catch { /* private mode */ }
+        if (!tgl.checked) {
+            World.disable();
+            Rig.setMaxZoom?.(7);
+            note.textContent = "off";
+            return;
+        }
+        note.textContent = "loading";
+        const r = await World.enable(Rig.getSkyColor?.());
+        if (r.ok) {
+            Rig.setMaxZoom?.(25);
+            note.textContent = World.place.name.split(",")[0];
+            World.shade(Rig.getSkyColor());
+            if (!r.fromCache)
+                toast(`Real world loaded: ${World.place.name}`, "good");
+        }
+        else {
+            tgl.checked = false;
+            note.textContent = "offline";
+            toast(`Real world unavailable (${r.note}); using the plain floor`, "warn");
+        }
+    };
+    tgl.addEventListener("change", apply);
+    Rig.ready.then(() => { World.init(window.THREE, Rig.getScene(), Rig.setGround); if (tgl.checked)
+        void apply(); }).catch(() => { });
+    setInterval(() => { if (World.state === "on")
+        World.shade(Rig.getSkyColor()); }, 1000);
+}
 $("tglCamDbg").addEventListener("change", (e) => { camDebug = e.target.checked; $("camDbgNote").textContent = camDebug ? "on" : "off"; });
 {
-  const tgl = $("faceModelToggle"), nm = $("faceModelName"), ids = FaceId.backends().filter((b) => b !== "scripted");
-  const label = (id) => (id === "faceapi" ? "face-api" : id);
-  // off = the first model (face-api, the default), on = the second one
-  const show = () => { nm.textContent = label(senses.faces.backendId); tgl.checked = ids.indexOf(senses.faces.backendId) > 0; };
-  show(); tgl.disabled = ids.length < 2;
-  if (ids.length < 2) $("faceModelLbl").title = "Only face-api is built in. More models can be added in src/faceBackend.ts (see docs/face-pipeline.md).";
-  tgl.addEventListener("change", async () => {
-    const want = ids[tgl.checked ? 1 : 0] ?? ids[0];
-    nm.textContent = label(want);
-    toast(`Face model: ${label(want)}${want === ids[0] ? " (default)" : ""}`, "good");
-    const prev = senses.faces.backendId;
-    const ok = await senses.faces.setBackend(want);
-    $("pipStatus").textContent = ok ? `face model: ${senses.faces.backend}` : `face model "${want}" could not start`;
-    if (!ok) { toast(`Face model "${label(want)}" could not start; staying on ${label(prev)}`, "warn"); await senses.faces.setBackend(prev); show(); }
-  });
+    const tgl = $("faceModelToggle"), nm = $("faceModelName"), ids = FaceId.backends().filter((b) => b !== "scripted");
+    const label = (id) => (id === "faceapi" ? "face-api" : id);
+    // off = the first model (face-api, the default), on = the second one
+    const show = () => { nm.textContent = label(senses.faces.backendId); tgl.checked = ids.indexOf(senses.faces.backendId) > 0; };
+    show();
+    tgl.disabled = ids.length < 2;
+    if (ids.length < 2)
+        $("faceModelLbl").title = "Only face-api is built in. More models can be added in src/faceBackend.ts (see docs/face-pipeline.md).";
+    tgl.addEventListener("change", async () => {
+        const want = ids[tgl.checked ? 1 : 0] ?? ids[0];
+        nm.textContent = label(want);
+        toast(`Face model: ${label(want)}${want === ids[0] ? " (default)" : ""}`, "good");
+        const prev = senses.faces.backendId;
+        const ok = await senses.faces.setBackend(want);
+        $("pipStatus").textContent = ok ? `face model: ${senses.faces.backend}` : `face model "${want}" could not start`;
+        if (!ok) {
+            toast(`Face model "${label(want)}" could not start; staying on ${label(prev)}`, "warn");
+            await senses.faces.setBackend(prev);
+            show();
+        }
+    });
 }
 setInterval(() => {
     const ctx = overlay.getContext("2d");

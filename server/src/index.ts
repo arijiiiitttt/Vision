@@ -4,7 +4,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { createServer } from "node:http";
 import { env } from "./config/env";
-import { simulationRouter, simulationStatic } from "./routes/simulation.routes";
+import { simulationRouter, simulationStatic, brainViewStatic } from "./routes/simulation.routes";
 import { robotModeService } from "./robot/RobotModeService";
 import { robotLink } from "./robot/RobotLink";
 import { simulatedRobot } from "./robot/SimulatedRobot";
@@ -40,6 +40,7 @@ import { telemetryRouter } from "./routes/telemetry.routes";
 import { systemRouter } from "./routes/system.routes";
 import { conversationRouter, restrictionsRouter } from "./routes/conversation.routes";
 import { commandDeliveryRouter } from "./routes/commandDelivery.routes";
+import { mindEngine } from "./mind";
 
 const app = express();
 // Behind Render/Fly/nginx every request arrives from the proxy's IP. Without this, rate limiting
@@ -82,6 +83,7 @@ app.use("/api", api);
 // The 3D simulator page — only answers while the robot mode is "simulation" (it can now change from the dashboard,
 // so the check happens per request). Its data endpoints are under /api/simulation.
 app.use("/simulation", simulationStatic);
+app.use("/brain-view", brainViewStatic);
 
 app.use(errorHandler);
 
@@ -95,6 +97,7 @@ initSocket(httpServer);
   // A mode chosen on the dashboard (remembered in data/robot-mode.json) wins over the ROBOT_MODE environment value.
   // set() starts the virtual robot when the result is simulation.
   if (robotModeService.load() === "simulation") simulatedRobot.start();
+  mindEngine.load(); // the brain choice made on the dashboard (shared = the simulator's brain, or classic)
 
 async function start() {
   // Loads everything static/dynamic/conceptual memory has ever been

@@ -45,6 +45,8 @@ import { getAnnoyance } from "../mental/Annoyance";
 import { noteAdminFaceConfirmed } from "../people/AdminPresence";
 import { isConfirmationPending, hasConfirmationExpired, getPendingConfirmation, markTimedOutMessageSent, clearPendingConfirmation, shouldAttemptSecondTurn, markSecondTurnDone, TURN_DURATION_MS } from "../people/PendingEmergencyStopConfirmation";
 import { logger } from "../logging/Logger";
+import { sharedMind, sharedMindActive } from "../mind";
+import { setLiveFeed } from "../mind/liveFeed";
 import type { BrainCycleResult, PerceptionSummary } from "./brainTypes";
 import type { CommandResult, UltrasonicState } from "../packages/types";
 
@@ -94,6 +96,37 @@ export class BrainOrchestrator {
     const presenceEvent = trackPresence(robotId, ultrasonicReading);
 
     const perceptionResult = await processObservation(imageBuffer, robotId);
+
+    // The shared brain (the simulator's, running on the server: src/mind) is fed everything the camera sees. NOTHING of the older
+    // behaviour is switched off because of it: greetings, farewells, low-light prompt, gestures, wandering, face-visibility moves all
+    // still happen. The only rule: a MOVEMENT behaviour waits for the next frame if the shared brain is in the middle of its own move.
+    const sharedWanted = sharedMindActive();
+    if (sharedWanted && !sharedMind.running) sharedMind.start(robotId).catch((err) => logger.warn("Shared mind could not start; the classic brain keeps driving", { error: String(err) }));
+    // Keep the newest picture and sensor reading so the dashboard's live page can show what the robot sees right now.
+    setLiveFeed({
+      robotId, at: Date.now(), jpeg: imageBuffer.length > 0 ? imageBuffer : null,
+      frameWidth: perceptionResult.quality.width, frameHeight: perceptionResult.quality.height,
+      personDetected: perceptionResult.person.personDetected,
+      personName: perceptionResult.recognition?.status === "CONFIRMED" ? perceptionResult.recognition.name ?? null : null,
+      objects: perceptionResult.objects.map((o) => ({ name: o.name, confidence: o.confidence, box: o.boundingBox ? { x: o.boundingBox.x, y: o.boundingBox.y, width: o.boundingBox.width, height: o.boundingBox.height } : undefined })),
+      motion: perceptionResult.motion.magnitude ?? 0,
+      brightness: (perceptionResult.quality.meanBrightness ?? 128) / 255,
+      ultrasonicMm: ultrasonicReading.filteredDistanceMm,
+    });
+    const mindOn = sharedWanted && sharedMind.running;
+    const mindMoving = mindOn && sharedMind.busy; // the shared brain is mid-move right now
+    if (mindOn) {
+      sharedMind.observe({
+        personDetected: perceptionResult.person.personDetected,
+        personName: perceptionResult.recognition?.status === "CONFIRMED" ? perceptionResult.recognition.name ?? null : null,
+        personCenterX: perceptionResult.person.centerX,
+        frameWidth: perceptionResult.quality.width,
+        objects: perceptionResult.objects.map((o) => ({ name: o.name, confidence: o.confidence, centerX: o.boundingBox ? o.boundingBox.x + o.boundingBox.width / 2 : undefined })),
+        motion: perceptionResult.motion.magnitude ?? 0,
+        brightness: (perceptionResult.quality.meanBrightness ?? 128) / 255,
+        ultrasonicMm: ultrasonicReading.filteredDistanceMm,
+      });
+    }
 
     // Store (or discard/skip) the frame exactly once, using the quality/
     // motion analysis processObservation already computed — see
@@ -211,9 +244,11 @@ export class BrainOrchestrator {
     // (start/continue/instantly-preempt). Never awaited-and-blocking in a
     // way that could stall the rest of the cycle: any failure inside is
     // caught and logged there, not here.
-    explorationTick(robotId, mentalOutput.state.explorationActive).catch((err) =>
-      logger.warn("Exploration tick failed (non-fatal)", { robotId, error: (err as Error).message }),
-    );
+    if (!mindMoving) {
+      explorationTick(robotId, mentalOutput.state.explorationActive).catch((err) =>
+        logger.warn("Exploration tick failed (non-fatal)", { robotId, error: (err as Error).message }),
+      );
+    }
 
     const decision = decisionMaker.decide({
       observationId,
@@ -279,7 +314,7 @@ export class BrainOrchestrator {
     // it must not block this cycle's return. Any failure inside is
     // caught and logged there, not here.
     const faceSkipReason = perceptionResult.recognition?.skipReason ?? null;
-    if (autonomous && shouldAttemptFaceVisibilityHelp({ robotId, personDetected: perceptionResult.person.personDetected, skipReason: faceSkipReason })) {
+    if (autonomous && !mindMoving && shouldAttemptFaceVisibilityHelp({ robotId, personDetected: perceptionResult.person.personDetected, skipReason: faceSkipReason })) {
       runFaceVisibilitySequence(robotId).catch((err) =>
         logger.warn("Face-visibility sequence failed to start (non-fatal)", { robotId, error: (err as Error).message }),
       );
@@ -303,7 +338,7 @@ export class BrainOrchestrator {
         );
       }
       clearPendingConfirmation(robotId);
-    } else if (autonomous && shouldAttemptSecondTurn(robotId)) {
+    } else if (autonomous && !mindMoving && shouldAttemptSecondTurn(robotId)) {
       // The first turn (fired immediately when the window opened — see
       // routes/conversation.routes.ts) picked a side with no way to know
       // if it was the right one. Nobody's confirmed yet, so cover the
@@ -445,7 +480,7 @@ export class BrainOrchestrator {
     // of only appearing in an API response. Self-gating (returns null for
     // most states) so this doesn't fire every single cycle.
     let gesturePlayed: GestureName | null = null;
-    if (autonomous) {
+    if (autonomous && !mindMoving) {
       gesturePlayed = await playEmbodiedGesture(robotId, mentalOutput.emotion.emotion, decision.decision);
       // A long stretch of nothing happening still gets an occasional small
       // fidget — "still here, just bored" rather than looking frozen.
@@ -464,7 +499,7 @@ export class BrainOrchestrator {
     // Exception: while the legs are driving, the head stays pointed forward. The
     // ultrasonic sensor rides on it, and looking away would trip the movement
     // safety rule and stop the robot mid-walk (docs/ultrasonic.md).
-    if (autonomous && !legsAreDriving()) {
+    if (autonomous && !legsAreDriving() && !mindMoving) {
       const currentAngle = getHeadAngle();
       headCommand = decideHeadCommand({
         attentionState: attention.state,

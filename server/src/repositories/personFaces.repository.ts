@@ -35,6 +35,15 @@ export const personFacesRepository = {
     return row;
   },
 
+  /** Every stored face of one model, with the person's name, for sharing with the simulator (same people, same fingerprints). */
+  async listForSharing(backend: string, limit = 600) {
+    const rows = await db
+      .select({ name: people.name, category: people.category, embedding: personFaces.embedding, dimensions: personFaces.dimensions })
+      .from(personFaces).innerJoin(people, eq(people.id, personFaces.personId))
+      .where(eq(personFaces.backend, backend)).limit(limit);
+    return rows.filter((r) => !!r.name).map((r) => ({ name: r.name as string, category: r.category as string, embedding: (r.embedding as number[]).slice(0, r.dimensions ?? (r.embedding as number[]).length) }));
+  },
+
   async forPerson(personId: string) {
     return db.select().from(personFaces).where(eq(personFaces.personId, personId));
   },

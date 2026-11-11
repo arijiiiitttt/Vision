@@ -6,7 +6,7 @@ import { Gamepad2, Brain, Cuboid, Loader } from "lucide-react";
 import { PillGroup, Seg } from "./StatusPill";
 
 const TITLES = {
-  "": "Dashboard", monitoring: "Monitoring", robot: "Robot", camera: "Live Camera", tracking: "Person Tracking",
+  "": "Dashboard", monitoring: "Monitoring", robot: "Robot", live: "Live Robot", camera: "Live Camera", tracking: "Person Tracking",
   audio: "Audio", ultrasonic: "Ultrasonic", memory: "Memory Lookup", brain: "Brain", mental: "Mental Intelligence",
   decisions: "Decisions", reactions: "Reactions", tasks: "Tasks", commands: "Commands", "control/eye": "Eye Control",
   "control/leg": "Leg Control", "control/gait": "Gait Control", telemetry: "Telemetry", logs: "Logs", safety: "Safety",

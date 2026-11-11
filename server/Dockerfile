@@ -44,6 +44,8 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/simulation ./simulation
+# Face-recognition and object-detection model files (loaded from ./models at runtime)
+COPY --from=build /app/models ./models
 
 EXPOSE 4000
 CMD ["node", "dist/index.js"]

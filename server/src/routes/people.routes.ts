@@ -10,6 +10,8 @@ import { computeFaceEmbeddingDetailed, NoFaceDetectedError } from "../perception
 import { scoreFaceQuality } from "../perception/quality/faceQuality";
 import { playRequestsRepository } from "../repositories/playRequests.repository";
 import { musicTracksRepository } from "../repositories/musicTracks.repository";
+import { storeMedia } from "../camera/mediaStorage";
+import { getEmbeddingBackend } from "../perception/embedding";
 import { requireAuth } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
 
@@ -28,6 +30,19 @@ peopleRouter.use("/people", requireAuth, requireRole("ADMIN"));
 
 peopleRouter.get("/people", async (_req, res) => res.json(await peopleRepository.list()));
 peopleRouter.post("/people", async (req, res) => res.json(await peopleRepository.create(req.body)));
+
+/**
+ * Server -> simulator. The people the server knows, as face fingerprints, so the simulator recognises exactly the same people
+ * (people you taught it, and people the real robot met). Only fingerprints made by the server's current face model are sent;
+ * the simulator uses them only when it runs the same model family (face-api, 128 numbers).
+ */
+peopleRouter.get("/people/face-data", async (_req, res) => {
+  const backend = getEmbeddingBackend().name;
+  const rows = await personFacesRepository.listForSharing(backend);
+  const byName = new Map<string, { name: string; category: string; faces: number[][] }>();
+  for (const r of rows) { const k = r.name.toLowerCase(); (byName.get(k) ?? byName.set(k, { name: r.name, category: r.category, faces: [] }).get(k)!).faces.push(r.embedding); }
+  res.json({ backend, people: [...byName.values()] });
+});
 
 peopleRouter.patch("/people/:id", async (req, res) => {
   const { name, category } = req.body ?? {};
@@ -77,6 +92,45 @@ peopleRouter.post("/people/:id/faces", async (req, res) => {
     }
     throw err;
   }
+});
+
+/**
+ * Simulator -> real robot. The simulator's "Send people to dashboard" button posts everyone it was taught (a name plus a few
+ * 160 px face photos). We find or create the person by name and enrol each photo through the SAME face pipeline the real robot
+ * uses (detect, embed, quality gate), so the dashboard shows them and the ESP32's camera frames are matched against them.
+ * Photos are sent, not the simulator's own face fingerprints, because the two use different face models.
+ * New people start as GUEST (not trusted) - an admin can change that on the People page. Nothing here touches hardware.
+ */
+const VISITOR_NAME = /^visitor\s*\d*$/i;
+peopleRouter.post("/people/import-from-simulator", async (req, res) => {
+  const list = req.body?.people;
+  if (!Array.isArray(list)) return res.status(400).json({ code: "INVALID_REQUEST", message: "people must be a list" });
+  const out: Array<Record<string, unknown>> = [];
+  for (const entry of list.slice(0, 20)) {
+    const name = String(entry?.name ?? "").trim().slice(0, 80);
+    if (!name || VISITOR_NAME.test(name)) { out.push({ name: name || "(no name)", status: "skipped", reason: "not named yet" }); continue; }
+    const matches = await peopleRepository.findAllByName(name);
+    if (matches.length > 1) { out.push({ name, status: "skipped", reason: `${matches.length} people already share this name - rename one on the People page first` }); continue; }
+    let person = matches[0] ?? null; const created = !person;
+    if (!person) person = await peopleRepository.create({ name, category: "GUEST", metadata: { source: "simulator" } });
+    let enrolled = 0; const failed: string[] = [];
+    for (const raw of (Array.isArray(entry?.photos) ? entry.photos : []).slice(0, 8)) {
+      try {
+        const b64 = String(raw ?? "").replace(/^data:image\/\w+;base64,/, "");
+        if (!b64 || b64.length > 400_000) { failed.push("photo missing or too big"); continue; }
+        const buffer = Buffer.from(b64, "base64");
+        const { embedding, detection, backendName } = await computeFaceEmbeddingDetailed(buffer);
+        const meta = await sharp(buffer, { failOn: "none" }).metadata();
+        const quality = await scoreFaceQuality(buffer, meta.width ?? 0, meta.height ?? 0, detection);
+        if (!quality.isUsable) { failed.push(`quality too low (${(quality.rejectReasons ?? []).join(", ") || "unknown"})`); continue; }
+        const stored = await storeMedia(buffer, `sim-${person.id}-${Date.now()}.jpg`, { mediaType: "IMAGE" }).catch(() => null);
+        await personFacesRepository.create({ personId: person.id, embedding, backend: backendName, mediaId: stored?.mediaId ?? null, qualityScore: quality.overallScore });
+        enrolled++;
+      } catch (err) { failed.push(err instanceof NoFaceDetectedError ? "no face found in the photo" : "could not process the photo"); }
+    }
+    out.push({ name, status: created ? "created" : "updated", personId: person.id, enrolled, failed });
+  }
+  res.json({ results: out });
 });
 
 peopleRouter.get("/people/:id/faces", async (req, res) => {

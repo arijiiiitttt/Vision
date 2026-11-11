@@ -95,7 +95,7 @@ export function simulationCsp(frontendUrl = env.FRONTEND_URL): string {
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
     "img-src 'self' data: blob:",
     "media-src 'self' blob: data: https:",
-    `connect-src 'self' ${cdn} https://storage.googleapis.com https://tfhub.dev https://www.kaggle.com`,
+    `connect-src 'self' ${cdn} https://storage.googleapis.com https://tfhub.dev https://www.kaggle.com https://overpass-api.de https://overpass.kumi.systems`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -111,6 +111,23 @@ simulationStatic.use((_req, res, next) => {
   next();
 });
 simulationStatic.use(staticFiles);
+
+/**
+ * The brain picture for the dashboard's Live Robot page: the simulator's own brain drawing, served in EVERY robot mode (the real robot runs in
+ * hardware mode, where /simulation is switched off). It holds no data itself: it only draws what GET /api/system/mind/live returns, which needs a login.
+ */
+export const brainViewStatic = Router();
+const BRAIN_VIEW_DIR = path.join(SIM_CLIENT_DIR, "brain-live");
+const asStatic = (dir: string) => express.static(dir, { maxAge: 0, setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") });
+brainViewStatic.use((_req, res, next) => {
+  res.removeHeader("X-Frame-Options");
+  res.setHeader("Content-Security-Policy", simulationCsp());
+  next();
+});
+brainViewStatic.use("/lib", asStatic(path.join(SIM_CLIENT_DIR, "autonomous", "js")));
+brainViewStatic.use("/css", asStatic(path.join(SIM_CLIENT_DIR, "autonomous", "css")));
+brainViewStatic.get("/auth.js", (_req, res) => res.sendFile(path.join(SIM_CLIENT_DIR, "js", "auth.js")));
+brainViewStatic.use(asStatic(BRAIN_VIEW_DIR));
 
 export const simulationRouter = Router();
 

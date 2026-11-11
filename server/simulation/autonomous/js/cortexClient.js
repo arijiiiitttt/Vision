@@ -53,3 +53,27 @@ export async function deleteMindState() {
     }
     catch { /* ignore */ }
 }
+/** Send taught people (name + face photos) to the server's People list, which the real robot also uses. Needs an admin session. */
+export async function sendPeople(people) {
+    try {
+        const r = await fetch("/api/people/import-from-simulator", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ people }) });
+        const d = r.ok ? await r.json() : null;
+        return { ok: r.ok, status: r.status, results: d?.results ?? [] };
+    }
+    catch {
+        return { ok: false, status: 0, results: [] };
+    }
+}
+/** The people the server knows, as face fingerprints (same people the real robot recognises). Needs an admin session. */
+export async function fetchSharedPeople() {
+    try {
+        const r = await fetch("/api/people/face-data", { credentials: "same-origin" });
+        if (!r.ok)
+            return null;
+        const d = await r.json();
+        return { backend: String(d.backend ?? ""), people: (d.people ?? []).map((p) => ({ name: String(p.name), descriptors: p.faces ?? [] })) };
+    }
+    catch {
+        return null;
+    }
+}

@@ -1,6 +1,7 @@
 import { useRobotLink } from "../../hooks/useRobotLink";
 import Card from "../common/Card";
 import Badge from "../common/Badge";
+import { simulatorUrl } from "../../api/simulation";
 import { modeBadge, transportBadge, detailRows } from "./robotLinkView";
 
 const apiRoot = () => (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api\/?$/, "");
@@ -20,7 +21,7 @@ export default function RobotLinkCard() {
             <Badge tone={mode.tone}>{mode.label}</Badge>
             <Badge tone={transport.tone}>{transport.label}</Badge>
             {link?.mode === "simulation" && (
-              <a className="text-xs underline text-vision-muted" target="_blank" rel="noreferrer" href={`${apiRoot()}/simulation/`}>
+              <a className="text-xs underline text-vision-muted" target="_blank" rel="noreferrer" href={simulatorUrl()}>
                 open 3D simulation
               </a>
             )}

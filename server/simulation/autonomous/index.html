@@ -26,6 +26,7 @@
   <div class="badge" id="llmBadge"><i></i><span>LLM: checking…</span></div>
   <button class="estop" id="estop" title="Emergency stop (Esc)">E-STOP</button>
 </header>
+<script src="../js/auth.js"></script>
 <script>/* inside the simulator shell the mind controls live in the shell's top bar: drop this header now, before the 3D view measures the page */try{if(window.parent!==window&&window.parent.document.getElementById("estop"))document.querySelector("header.top").remove();}catch(e){}</script>
 
 <div class="layout">
@@ -156,6 +157,8 @@
     <section class="card">
       <div class="card-h"><h3>Capabilities</h3></div>
       <div class="tgl-grid">
+        <label class="tgl" title="When on, people you teach him are sent to the dashboard automatically (needs an admin sign-in)"><input type="checkbox" id="tglAutoSend" checked /><span>Send people</span><em id="sendNote">auto</em></label>
+        <label class="tgl" title="Real streets, buildings and parks from OpenStreetMap instead of the black floor"><input type="checkbox" id="tglWorld" checked /><span>Real world</span><em id="worldNote">loading</em></label>
         <label class="tgl"><input type="checkbox" id="tglCam" /><span>Camera</span><em id="camNote">off</em></label>
         <label class="tgl" title="Draw what the face model sees on the camera preview: boxes, who it matched and why, fingerprints"><input type="checkbox" id="tglCamDbg" /><span>Camera debug</span><em id="camDbgNote">off</em></label>
         <label class="tgl"><input type="checkbox" id="tglMic" /><span>Microphone</span><em id="micNote">off</em></label>
