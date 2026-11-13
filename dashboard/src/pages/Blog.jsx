@@ -354,7 +354,7 @@ const Blog = () => {
               thing to build, so that is what this post is about, and i will try to show the actual numbers
               instead of just saying "it has feelings".
             </p>
-            <ZoomImage src="/assets/blog/vision-layout.png" alt="Layout" />
+            <ZoomImage src="/public/blog/vision-layout.png" alt="Layout" />
             <p>the whole thing is four parts that talk to each other:</p>
             <Bullets
               items={[
@@ -364,11 +364,7 @@ const Blog = () => {
                 ["the simulator", "a 3d version of vision that runs in the browser, so i can test the whole mind without touching the hardware."],
               ]}
             />
-            <Eq>{`esp32-s3 robot  <--- websocket --->  typescript server  --->  postgres + pgvector
-(camera, mic, speaker,                  |  brain, memory, safety,         (people, faces, memory, logs)
- 3 servos, ultrasonic)                  |  compiler, simulator host   --->  optional ai models
-                                        |
-                                        +--- socket.io --->  react dashboard`}</Eq>
+             <ZoomImage src="/public/blog/design.png" alt="Layout" />
             <p>
               there are two ways it runs, set by one setting. in simulation mode (the default) the brain drives a
               virtual robot that you watch in 3d. in hardware mode the same brain drives the real esp32 over a
@@ -4319,19 +4315,19 @@ confidence = 1 − 0.437 = 0.56`}</Eq>
             <p><b>hardware :</b> the improvement in hardware is like initially i have build a prototype of vision out of mountboard and made an estimate of its size and designed it further for the MVP.</p>
 
             <Caption>the front view</Caption>
-            <ZoomImage src="/assets/robort/fl-1.jpg" className="rounded-lg" alt="Front view" />
+            <ZoomImage src="/public/blog/robort/fl-1.jpg" className="rounded-lg" alt="Front view" />
 
             <Caption>the side view</Caption>
-            <ZoomImage src="/assets/robort/fl-2.jpg" className="rounded-lg" alt="Side view" />
+            <ZoomImage src="/public/blog/robort/fl-2.jpg" className="rounded-lg" alt="Side view" />
 
             <Caption>the top view</Caption>
-            <ZoomImage src="/assets/robort/fl-3.jpg" className="rounded-lg" alt="Top view" />
+            <ZoomImage src="/public/blog/robort/fl-3.jpg" className="rounded-lg" alt="Top view" />
 
             <Caption>the inside view</Caption>
-            <ZoomImage src="/assets/robort/b-1.jpg" className="rounded-lg" alt="Inside view" />
+            <ZoomImage src="/public/blog/robort/b-1.jpg" className="rounded-lg" alt="Inside view" />
 
             <Caption>the leg view</Caption>
-            <ZoomImage src="/assets/robort/l-1.jpg" className="rounded-lg" alt="Leg view" />
+            <ZoomImage src="/public/blog/robort/l-1.jpg" className="rounded-lg" alt="Leg view" />
           </div>
 
           <div className="space-y-6">
@@ -4564,13 +4560,13 @@ head sweep       = 180° / 240°/s = 0.75 s`}</Eq>
             </p>
 
             <Caption>the view</Caption>
-            <ZoomImage src="/assets/robort/mvp-1.jpg" className="rounded-lg" alt="MVP view 1" />
+            <ZoomImage src="/public/blog/robort/mvp-1.jpg" className="rounded-lg" alt="MVP view 1" />
             <Caption>the view</Caption>
-            <ZoomImage src="/assets/robort/mvp-2.jpg" className="rounded-lg" alt="MVP view 2" />
+            <ZoomImage src="/public/blog/robort/mvp-2.jpg" className="rounded-lg" alt="MVP view 2" />
             <Caption>the back view</Caption>
-            <ZoomImage src="/assets/robort/mvp-b.jpg" className="rounded-lg" alt="MVP back view" />
+            <ZoomImage src="/public/blog/robort/mvp-b.jpg" className="rounded-lg" alt="MVP back view" />
             <Caption>the top view</Caption>
-            <ZoomImage src="/assets/robort/mvp-t.jpg" className="rounded-lg" alt="MVP top view" />
+            <ZoomImage src="/public/blog/robort/mvp-t.jpg" className="rounded-lg" alt="MVP top view" />
           </div>
 
           <hr />
