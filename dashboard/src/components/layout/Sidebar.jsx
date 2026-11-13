@@ -175,6 +175,7 @@ export default function Sidebar() {
           <div className="flex items-center justify-between px-3 h-14 shrink-0">
             <Link to="/dashboard" className="flex items-center gap-2.5 min-w-0">
               <img
+              href="/"
                 src="/images/Vision.png"
                 alt="Vision"
                 className="w-8 h-8 object-contain shrink-0"
